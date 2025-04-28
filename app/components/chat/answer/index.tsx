@@ -327,7 +327,7 @@ const Answer: FC<IAnswerProps> = ({
                             onClick={() => isWalletConnected && buildTransaction(txData)}
                             disabled={!isWalletConnected || isLoading}
                           >
-                            {isLoading ? 'Processing...' : 'Build and send the transaction.'}
+                            {isLoading ? 'Processing...' : 'Send transaction.'}
                           </button>
                         </div>
                       </div>

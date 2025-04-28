@@ -332,9 +332,12 @@ const Answer: FC<IAnswerProps> = ({
                         </div>
                       </div>
                     );
+                  } else {
+                    console.log(`jsonContent: ${jsonContent}. jsonContent.result is null or jsonContent.result.name !== "Web3McpActions"`)
                   }
                   return null;
                 } catch (e) {
+                  console.log(`content(${content}) not json. error: ${e}`)
                   return null;
                 }
               })()}

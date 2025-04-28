@@ -265,8 +265,8 @@ const Answer: FC<IAnswerProps> = ({
                   : (() => {
                     try {
                       const jsonContent = JSON.parse(content);
-                      if (jsonContent.result && jsonContent.result.name === "Web3McpActions") {
-                        return <p>{jsonContent.result.message}</p>;
+                      if (jsonContent && jsonContent.name === "Web3McpActions") {
+                        return <p>{jsonContent.message}</p>;
                       }
                       return <Markdown content={content} />;
                     } catch (e) {
@@ -277,8 +277,8 @@ const Answer: FC<IAnswerProps> = ({
               {(() => {
                 try {
                   const jsonContent = JSON.parse(content);
-                  if (jsonContent.result && jsonContent.result.name === "Web3McpActions") {
-                    const txData = jsonContent.result.actions[0];
+                  if (jsonContent && jsonContent.name === "Web3McpActions") {
+                    const txData = jsonContent.actions[0];
                     return (
                       <div className="web3-mcp-actions p-4 border rounded-lg mt-4 bg-white">
                         <h3 className="text-lg font-medium mb-4">Web3MCP Transaction Construction Details:</h3>
@@ -333,7 +333,7 @@ const Answer: FC<IAnswerProps> = ({
                       </div>
                     );
                   } else {
-                    console.log(`jsonContent: ${jsonContent}. jsonContent.result is null or jsonContent.result.name !== "Web3McpActions"`)
+                    console.log(`jsonContent: ${JSON.stringify(jsonContent)}. jsonContent is null or jsonContent.name !== "Web3McpActions"`)
                   }
                   return null;
                 } catch (e) {

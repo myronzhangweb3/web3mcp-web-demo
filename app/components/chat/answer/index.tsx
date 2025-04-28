@@ -1,6 +1,6 @@
 'use client'
 import type { FC } from 'react'
-import React from 'react'
+import React, { useState } from 'react'
 import { HandThumbDownIcon, HandThumbUpIcon } from '@heroicons/react/24/outline'
 import { useTranslation } from 'react-i18next'
 import LoadingAnim from '../loading-anim'
@@ -14,6 +14,7 @@ import Tooltip from '@/app/components/base/tooltip'
 import WorkflowProcess from '@/app/components/workflow/workflow-process'
 import { Markdown } from '@/app/components/base/markdown'
 import type { Emoji } from '@/types/tools'
+import { ethers } from 'ethers'
 
 const OperationBtn = ({ innerContent, onClick, className }: { innerContent: React.ReactNode; onClick?: () => void; className?: string }) => (
   <div
@@ -72,8 +73,80 @@ const Answer: FC<IAnswerProps> = ({
 }) => {
   const { id, content, feedback, agent_thoughts, workflowProcess } = item
   const isAgentMode = !!agent_thoughts && agent_thoughts.length > 0
+  const [isWalletConnected, setIsWalletConnected] = useState(false)
+  const [walletAddress, setWalletAddress] = useState('')
+  const [provider, setProvider] = useState<ethers.Provider | null>(null)
+  const [signer, setSigner] = useState<ethers.Signer | null>(null)
+  const [transactionHash, setTransactionHash] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const { t } = useTranslation()
+
+  const connectWallet = async () => {
+    setError('')
+    try {
+      if ((window as any).ethereum) {
+        const provider = new ethers.BrowserProvider((window as any).ethereum)
+        await (window as any).ethereum.request({ method: 'eth_requestAccounts' })
+        const signer = await provider.getSigner()
+        const address = await signer.getAddress()
+
+        setProvider(provider)
+        setSigner(signer)
+        setWalletAddress(address)
+        setIsWalletConnected(true)
+      } else {
+        setError('Please install MetaMask or another Ethereum wallet.')
+      }
+    } catch (err) {
+      console.error('Failed to connect wallet.:', err)
+      setError('Failed to connect wallet.')
+    }
+  }
+
+  const buildTransaction = async (txData: any) => {
+    if (!signer) {
+      setError('Please connect your wallet first.')
+      return
+    }
+
+    setIsLoading(true)
+    setError('')
+
+    try {
+      const tx = {
+        to: txData.to,
+        value: ethers.parseEther(ethers.formatEther(txData.value)),
+        gasLimit: txData.gas,
+        gasPrice: txData.gasPrice ? ethers.getBigInt(txData.gasPrice) : undefined,
+        chainId: txData.chainId
+      }
+
+      const network = await provider?.getNetwork();
+      if (network?.chainId != txData.chainId) {
+        try {
+          await (window as any).ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: ethers.hexlify(txData.chainId) }],
+          })
+        } catch (switchError: any) {
+          setError(`Please switch to chain ID: ${txData.chainId}`)
+          setIsLoading(false)
+          return
+        }
+      }
+
+      const txResponse = await signer.sendTransaction(tx)
+      setTransactionHash(txResponse.hash)
+      await txResponse.wait()
+      setIsLoading(false)
+    } catch (err: any) {
+      console.error('The transaction failed:', err)
+      setError(err.message || 'Transaction failed.')
+      setIsLoading(false)
+    }
+  }
 
   /**
  * Render feedback results (distinguish between users and administrators)
@@ -92,7 +165,7 @@ const Answer: FC<IAnswerProps> = ({
     return (
       <Tooltip
         selector={`user-feedback-${randomString(16)}`}
-        content={isLike ? '取消赞同' : '取消反对'}
+        content={isLike ? 'Cancel approval' : 'Cancel opposition'}
       >
         <div
           className={'relative box-border flex items-center justify-center h-7 w-7 p-0.5 rounded-lg bg-white cursor-pointer text-gray-500 hover:text-gray-800'}
@@ -192,10 +265,82 @@ const Answer: FC<IAnswerProps> = ({
                   : (
                     <Markdown content={content} />
                   ))}
+              {(() => {
+                try {
+                  const jsonContent = JSON.parse(content);
+                  if (jsonContent.result && jsonContent.result.name === "Web3McpActions") {
+                    const txData = jsonContent.result.actions[0];
+                    return (
+                      <div className="web3-mcp-actions p-4 border rounded-lg mt-4 bg-white">
+                        <h3 className="text-lg font-medium mb-4">Web3MCP Transaction Construction Details:</h3>
+                        <div className="connect-wallet-section">
+                          {!isWalletConnected ? (
+                            <button
+                              className="connect-wallet-btn bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-md mb-4"
+                              onClick={connectWallet}
+                            >
+                              Connect Wallet
+                            </button>
+                          ) : (
+                            <div className="mb-4">
+                              <span className="bg-green-100 text-green-800 py-1 px-3 rounded-full text-sm">
+                                Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                              </span>
+                            </div>
+                          )}
+
+                          <div className="transaction-details bg-gray-50 p-3 rounded-md mb-4">
+                            <p className="mb-2"><span className="font-medium">Chain ID:</span> {txData.chainId}</p>
+                            <p className="mb-2"><span className="font-medium">Sender:</span> {txData.from}</p>
+                            <p className="mb-2"><span className="font-medium">Receiver:</span> {txData.to}</p>
+                            <p className="mb-2"><span className="font-medium">Amount:</span> {ethers.formatEther(txData.value)} ETH</p>
+                            <p className="mb-2"><span className="font-medium">Gas:</span> {txData.gas}</p>
+                            <p className="mb-2"><span className="font-medium">Gas Price:</span> {ethers.formatUnits(txData.gasPrice, 'gwei')} Gwei</p>
+                          </div>
+
+                          {error && (
+                            <div className="error-message bg-red-100 text-red-700 p-3 rounded-md mb-4">
+                              {error}
+                            </div>
+                          )}
+
+                          {transactionHash && (
+                            <div className="success-message bg-green-100 text-green-700 p-3 rounded-md mb-4">
+                              Transaction submitted! Transaction hash:
+                              <a
+                                href={`https://etherscan.io/tx/${transactionHash}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline ml-1"
+                              >
+                                {transactionHash.slice(0, 10)}...{transactionHash.slice(-8)}
+                              </a>
+                            </div>
+                          )}
+
+                          <button
+                            className={`build-transaction-btn py-2 px-4 rounded-md ${isWalletConnected
+                              ? 'bg-green-500 hover:bg-green-600 text-white'
+                              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                              }`}
+                            onClick={() => isWalletConnected && buildTransaction(txData)}
+                            disabled={!isWalletConnected || isLoading}
+                          >
+                            {isLoading ? 'Processing...' : 'Build and send the transaction.'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                } catch (e) {
+                  return null;
+                }
+              })()}
             </div>
             <div className='absolute top-[-14px] right-[-14px] flex flex-row justify-end gap-1'>
               {!feedbackDisabled && !item.feedbackDisabled && renderItemOperation()}
-              {/* User feedback must be displayed */}
+              {/* 用户反馈必须显示 */}
               {!feedbackDisabled && renderFeedbackRating(feedback?.rating)}
             </div>
           </div>

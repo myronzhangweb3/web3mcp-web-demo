@@ -306,15 +306,7 @@ const Answer: FC<IAnswerProps> = ({
 
                           {transactionHash && (
                             <div className="success-message bg-green-100 text-green-700 p-3 rounded-md mb-4">
-                              Transaction submitted! Transaction hash:
-                              <a
-                                href={`https://etherscan.io/tx/${transactionHash}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="underline ml-1"
-                              >
-                                {transactionHash.slice(0, 10)}...{transactionHash.slice(-8)}
-                              </a>
+                              Transaction submitted! Transaction hash: {transactionHash}
                             </div>
                           )}
 

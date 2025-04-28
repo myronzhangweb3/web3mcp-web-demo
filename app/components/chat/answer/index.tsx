@@ -262,9 +262,18 @@ const Answer: FC<IAnswerProps> = ({
                 )
                 : (isAgentMode
                   ? agentModeAnswer
-                  : (
-                    <Markdown content={content} />
-                  ))}
+                  : (() => {
+                    try {
+                      const jsonContent = JSON.parse(content);
+                      if (jsonContent.result && jsonContent.result.name === "Web3McpActions") {
+                        return <p>{jsonContent.result.message}</p>;
+                      }
+                      return <Markdown content={content} />;
+                    } catch (e) {
+                      return <Markdown content={content} />;
+                    }
+                  })()
+                )}
               {(() => {
                 try {
                   const jsonContent = JSON.parse(content);
